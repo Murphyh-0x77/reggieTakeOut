@@ -13,6 +13,8 @@ import com.liutao.reggie.service.SetmealDishService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.*;
 
@@ -37,6 +39,7 @@ public class SetmealController {
     private CategoryService categoryService;
 
     @PostMapping
+    @CacheEvict(value = "setmealCache", allEntries = true)//删除这个分类下的所有缓存数
     public R<String> save(@RequestBody SetmealDto setmealDto){
         setmealService.saveWithDish(setmealDto);
         return R.success("新增套餐成功");
@@ -50,42 +53,40 @@ public class SetmealController {
      * @return
      */
     @GetMapping("/page")
-    private R<Page> page(int page, int pageSize, String name){
-        //构造分页构造器
-        Page<Setmeal> pageInfo = new Page<>(page, pageSize);
+    public R<Page> page(int page,int pageSize,String name){
+        //分页构造器对象
+        Page<Setmeal> pageInfo = new Page<>(page,pageSize);
         Page<SetmealDto> dtoPage = new Page<>();
 
-
-
-        //构造条件构造器
-        LambdaQueryWrapper<Setmeal> wrapper = new LambdaQueryWrapper<Setmeal>();
+        LambdaQueryWrapper<Setmeal> queryWrapper = new LambdaQueryWrapper<>();
         //添加查询条件，根据name进行like模糊查询
-        wrapper.like(name != null, Setmeal::getName, name);
-        wrapper.orderByDesc(Setmeal::getUpdateTime);
-        setmealService.page(pageInfo, wrapper);
+        queryWrapper.like(name != null,Setmeal::getName,name);
+        //添加排序条件，根据更新时间降序排列
+        queryWrapper.orderByDesc(Setmeal::getUpdateTime);
 
-        //进行对象的拷贝
-        BeanUtils.copyProperties(pageInfo, dtoPage, "records");
+        setmealService.page(pageInfo,queryWrapper);
+
+        //对象拷贝
+        BeanUtils.copyProperties(pageInfo,dtoPage,"records");
         List<Setmeal> records = pageInfo.getRecords();
 
-        List<SetmealDto> list = records.stream().map((item)->{
+        List<SetmealDto> list = records.stream().map((item) -> {
             SetmealDto setmealDto = new SetmealDto();
-            BeanUtils.copyProperties(item, setmealDto);
-
+            //对象拷贝
+            BeanUtils.copyProperties(item,setmealDto);
             //分类id
             Long categoryId = item.getCategoryId();
             //根据分类id查询分类对象
-            Category byId = categoryService.getById(categoryId);
-            if(byId != null)  {
+            Category category = categoryService.getById(categoryId);
+            if(category != null){
                 //分类名称
-                String name1 = byId.getName();
-                setmealDto.setCategoryName(name1);
+                String categoryName = category.getName();
+                setmealDto.setCategoryName(categoryName);
             }
             return setmealDto;
         }).collect(Collectors.toList());
 
         dtoPage.setRecords(list);
-
         return R.success(dtoPage);
     }
 
@@ -95,6 +96,7 @@ public class SetmealController {
      * @return
      */
     @DeleteMapping
+    @CacheEvict(value = "setmealCache", allEntries = true)//删除这个分类下的所有缓存数
     public R<String> delete(@RequestParam List<Long> ids){
         setmealService.removeWithDish(ids);
         return R.success("套餐数据删除成功");
@@ -122,15 +124,13 @@ public class SetmealController {
      * @return
      */
     @GetMapping("/list")
+    @Cacheable(value = "setmealCache", key = "#setmeal.categoryId + '_' + #setmeal.status")
     public R<List<Setmeal>> list(Setmeal setmeal){
         LambdaQueryWrapper<Setmeal> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(setmeal.getCategoryId() != null, Setmeal::getCategoryId, setmeal.getCategoryId());
         wrapper.eq(setmeal.getStatus() != null, Setmeal::getStatus, setmeal.getStatus());
         wrapper.orderByDesc(Setmeal::getUpdateTime);
         List<Setmeal> list = setmealService.list(wrapper);
-
-
-
         return R.success(list);
     }
 }
