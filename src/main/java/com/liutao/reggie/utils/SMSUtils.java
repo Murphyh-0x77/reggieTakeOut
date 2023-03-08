@@ -10,9 +10,9 @@ import com.aliyuncs.profile.DefaultProfile;
 /**
  * 短信发送工具类
  *
- * 用户登录名称 Murphy@1530965653989011.onaliyun.com
- * AccessKey ID LTAI5tBNqNnZY2RuFUtYUxha
- * AccessKey Secret 5R4Wjw3BoMU0Tnt10Wgx4LDMz7uYwz
+ * 用户登录名称 
+ * AccessKey ID 
+ * AccessKey Secret 
  */
 public class SMSUtils {
 
